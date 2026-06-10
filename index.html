@@ -176,6 +176,11 @@
       touch-action: none;
     }
 
+    .stage:focus {
+      outline: 2px solid rgba(55, 240, 255, 0.65);
+      outline-offset: 2px;
+    }
+
     #game {
       display: block;
       width: 100%;
@@ -400,7 +405,7 @@
     </header>
 
     <section class="stage-wrap">
-      <div class="stage">
+      <div class="stage" id="stage" tabindex="0" aria-label="Zone de jeu">
         <svg id="game" role="img" aria-label="Labyrinthe de Fantome Chasseur"></svg>
       </div>
       <div class="overlay" id="overlay">
@@ -467,6 +472,7 @@
     const dirByName = Object.fromEntries(dirs.map((dir) => [dir.name, dir]));
     const reverse = { left: "right", right: "left", up: "down", down: "up" };
 
+    const stage = document.querySelector("#stage");
     const game = document.querySelector("#game");
     const scoreEl = document.querySelector("#score");
     const roundEl = document.querySelector("#round");
@@ -492,6 +498,7 @@
     let roundActive = true;
     let paused = false;
     let mouthOpen = true;
+    let stepCount = 0;
 
     function svgEl(tag, attrs = {}) {
       const el = document.createElementNS(SVG_NS, tag);
@@ -540,6 +547,7 @@
       queuedDir = dirByName.left;
       roundActive = true;
       mouthOpen = true;
+      stepCount = 0;
 
       map.forEach((row, y) => {
         row.forEach((cell, x) => {
@@ -581,6 +589,8 @@
           y: parsed.starts.A.y,
           dir: dirByName.right,
           mood: "direct",
+          stride: 3,
+          phase: 0,
           group: null
         },
         {
@@ -592,6 +602,8 @@
           y: parsed.starts.B.y,
           dir: dirByName.up,
           mood: "ambush",
+          stride: 3,
+          phase: 1,
           group: null
         },
         {
@@ -603,6 +615,8 @@
           y: parsed.starts.C.y,
           dir: dirByName.down,
           mood: "wander",
+          stride: 4,
+          phase: 2,
           group: null
         }
       ];
@@ -809,6 +823,21 @@
       return Number.isFinite(best) ? best : 40;
     }
 
+    function ghostThreat(x, y) {
+      let threat = 0;
+      ghosts.forEach((ghost) => {
+        const distance = Math.abs(ghost.x - x) + Math.abs(ghost.y - y);
+        if (distance === 0) threat += 120;
+        if (distance === 1) threat += 32;
+        if (distance === 2) threat += 9;
+      });
+      return threat;
+    }
+
+    function escapeOptions(x, y) {
+      return dirs.filter((dir) => isOpen(x + dir.dx, y + dir.dy) && ghostThreat(x + dir.dx, y + dir.dy) < 32).length;
+    }
+
     function choosePacmanDir() {
       const choices = openDirs(pacman, false);
       const fallback = choices.length ? choices : openDirs(pacman, true);
@@ -821,8 +850,9 @@
         const danger = nearestGhostDistance(nx, ny);
         const food = nearestPelletDistance(nx, ny);
         const keepsGoing = dir.name === pacman.dir.name ? 0.6 : 0;
-        const closePenalty = danger <= 2 ? (3 - danger) * 8 : 0;
-        const scoreValue = danger * 2.7 - food * 0.82 + keepsGoing - closePenalty + Math.random() * 0.9;
+        const exits = escapeOptions(nx, ny);
+        const closePenalty = danger <= 2 ? (3 - danger) * 12 : 0;
+        const scoreValue = danger * 3.2 + exits * 2.1 - food * 0.74 + keepsGoing - closePenalty - ghostThreat(nx, ny) + Math.random() * 0.7;
         if (scoreValue > bestScore) {
           best = dir;
           bestScore = scoreValue;
@@ -924,6 +954,7 @@
 
     function tick() {
       if (!roundActive || paused) return;
+      stepCount += 1;
       mouthOpen = !mouthOpen;
       movePlayer();
       checkCatch();
@@ -940,16 +971,54 @@
         return;
       }
 
-      ghosts.filter((ghost) => !ghost.player).forEach((ghost) => {
+      ghosts.filter((ghost) => !ghost.player && shouldMoveRival(ghost)).forEach((ghost) => {
         moveEntity(ghost, chooseGhostDir(ghost));
       });
       checkCatch();
       updateEntityPositions();
     }
 
+    function shouldMoveRival(ghost) {
+      return (stepCount + ghost.phase) % ghost.stride !== 0;
+    }
+
+    function focusStage() {
+      stage.focus({ preventScroll: true });
+    }
+
     function setDirection(name) {
       if (!dirByName[name]) return;
+      focusStage();
       queuedDir = dirByName[name];
+    }
+
+    function directionFromEvent(event) {
+      const key = String(event.key || "").toLowerCase();
+      const codeMap = {
+        ArrowLeft: "left",
+        ArrowRight: "right",
+        ArrowUp: "up",
+        ArrowDown: "down",
+        KeyA: "left",
+        KeyD: "right",
+        KeyW: "up",
+        KeyS: "down",
+        KeyQ: "left",
+        KeyZ: "up"
+      };
+      const keyMap = {
+        arrowleft: "left",
+        arrowright: "right",
+        arrowup: "up",
+        arrowdown: "down",
+        a: "left",
+        d: "right",
+        w: "up",
+        s: "down",
+        q: "left",
+        z: "up"
+      };
+      return codeMap[event.code] || keyMap[key];
     }
 
     function setPaused(value) {
@@ -960,32 +1029,22 @@
         : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>';
     }
 
-    window.addEventListener("keydown", (event) => {
-      const keyMap = {
-        ArrowLeft: "left",
-        ArrowRight: "right",
-        ArrowUp: "up",
-        ArrowDown: "down",
-        a: "left",
-        d: "right",
-        w: "up",
-        s: "down",
-        q: "left",
-        z: "up"
-      };
-      if (keyMap[event.key]) {
+    document.addEventListener("keydown", (event) => {
+      const direction = directionFromEvent(event);
+      if (direction) {
         event.preventDefault();
-        setDirection(keyMap[event.key]);
+        setDirection(direction);
       } else if (event.key === " ") {
         event.preventDefault();
         setPaused(!paused);
       }
-    });
+    }, { capture: true });
 
     document.querySelectorAll(".pad-button").forEach((button) => {
       button.addEventListener("pointerdown", () => setDirection(button.dataset.dir));
     });
 
+    stage.addEventListener("pointerdown", focusStage);
     pauseButton.addEventListener("click", () => setPaused(!paused));
     restartButton.addEventListener("click", () => {
       lastPoints = 0;
@@ -994,6 +1053,7 @@
     });
 
     resetRound(true);
+    focusStage();
     tickTimer = window.setInterval(tick, TICK_MS);
   </script>
 </body>
