@@ -13,3 +13,16 @@ Ouvrir `index.html` dans un navigateur.
 - Pacman termine le labyrinthe: 0 point
 
 Les manches redemarrent automatiquement apres chaque issue.
+
+## Structure
+
+- `index.html`: structure de l'interface et chargement des fichiers.
+- `css/styles.css`: styles de l'interface et du plateau SVG.
+- `js/config.js`: constantes, carte et directions.
+- `js/state.js`: etat mutable de la partie.
+- `js/maze.js`: lecture de carte et tests de collisions.
+- `js/render.js`: rendu SVG du plateau et des personnages.
+- `js/ai.js`: decisions de Pacman et des fantomes rivaux.
+- `js/game.js`: boucle de jeu, scores et fins de manche.
+- `js/input.js`: clavier, boutons tactiles, pause et relance.
+- `js/main.js`: demarrage du prototype.
