@@ -156,6 +156,7 @@
     }
 
     .stage-wrap {
+      --stage-reserve: 7.4rem;
       position: relative;
       display: grid;
       min-height: 0;
@@ -164,7 +165,7 @@
     }
 
     .stage {
-      width: min(96vw, calc((100vh - 5rem) * 0.96));
+      width: min(96vw, calc((100vh - var(--stage-reserve)) * 21 / 23));
       max-width: 820px;
       aspect-ratio: 21 / 23;
       border-radius: 8px;
@@ -337,6 +338,10 @@
     }
 
     @media (max-width: 700px) {
+      .stage-wrap {
+        --stage-reserve: 12.2rem;
+      }
+
       .hud {
         grid-template-columns: 1fr;
         align-items: start;
@@ -356,7 +361,7 @@
       }
 
       .stage {
-        width: min(96vw, calc((100vh - 9rem) * 0.96));
+        width: min(96vw, calc((100vh - var(--stage-reserve)) * 21 / 23));
       }
 
       .mobile-pad {
